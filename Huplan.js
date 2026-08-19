@@ -1,40 +1,43 @@
 const express = require('express');
-const bodyParser = require('bodyParser');
-const mongodb = require();
+const crypto = require('crypto');
 
-const {huplanModel} = require('../stock_data/models/huplanModel');
 const app = express();
-const PORT = 3000;
-app.use(bodyParser.json);
+const PORT = process.env.PORT || 3000;
 
-//CRITICAL: Your webhook secret shared with the provider (store in the environment variable)
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+// CRITICAL: Your webhook secret shared with the provider (store in environment variables)
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your_shared_signing_secret';
 
+//1. Capture the raw body before Express parses it into JSON
 app.use(express.json({
   verify: (req, res, buf) => {
-    req.rawBody =buf.toString();
+    req.rawBody = buf.toString(); // Attach the raw buffer string to the request
   }
 }));
 
-//verification Fubnction
-function verifyWebhookSignature(rawBody, incomingSignature, secret){
-  if(!incomingSignature) return false;
+//2. Verification Function
+function verifyWebhookSignature(rawBody, incomingSignature, secret) {
+  if (!incomingSignature) return false;
 
-  //compute the expected HMAc SHA-256 signature using the shared secret
-const expectedSignature =crypto
-  .createHmac('sha256',secret)
-  .update(rawBody)
-  .digest('hex'); //or 'base64' depending on provdier's spec
- //use timingSafeEqual to protect against timing attacks.
+  // Compute the expected HMAC SHA-256 signature using the shared secret
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex'); // Or 'base64' depending on your provider's spec
+
+  // Use timingSafeEqual to protect against timing attacks
   const expectedBuffer = Buffer.from(expectedSignature);
   const incomingBuffer = Buffer.from(incomingSignature);
-  if (expectedBufffer.length!==incomingBuffer.length) {
+
+  if (expectedBuffer.length !== incomingBuffer.length) {
     return false;
   }
-  return crypto.timeSafeEqual(expectedBuffer, incomingBuffer);
+
+  return crypto.timingSafeEqual(expectedBuffer, incomingBuffer);
 }
 
-//The Webhook Route
+/**
+ * 3. The Webhook Route
+ */
 app.post('/webhook', (req, res) => {
   // Most providers pass the signature in a custom header (e.g., Stripe-Signature, X-Hub-Signature-256)
   const incomingSignature = req.headers['x-webhook-signature'];
@@ -47,7 +50,7 @@ app.post('/webhook', (req, res) => {
     return res.status(401).send('Signature verification failed.');
   }
 
-  //Safely process the verified payload
+  // 4. Safely process the verified payload
   console.log('Webhook verified successfully!');
   const event = req.body;
   
