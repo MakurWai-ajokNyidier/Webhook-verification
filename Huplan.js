@@ -7,14 +7,14 @@ const PORT = process.env.PORT || 3000;
 // CRITICAL: Your webhook secret shared with the provider (store in environment variables)
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your_shared_signing_secret';
 
-//1. Capture the raw body before Express parses it into JSON
+//Capture the raw body before Express parses it into JSON
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf.toString(); // Attach the raw buffer string to the request
   }
 }));
 
-//2. Verification Function
+//Verification Function
 function verifyWebhookSignature(rawBody, incomingSignature, secret) {
   if (!incomingSignature) return false;
 
@@ -35,9 +35,7 @@ function verifyWebhookSignature(rawBody, incomingSignature, secret) {
   return crypto.timingSafeEqual(expectedBuffer, incomingBuffer);
 }
 
-/**
- * 3. The Webhook Route
- */
+//The Webhook Route
 app.post('/webhook', (req, res) => {
   // Most providers pass the signature in a custom header (e.g., Stripe-Signature, X-Hub-Signature-256)
   const incomingSignature = req.headers['x-webhook-signature'];
@@ -50,7 +48,7 @@ app.post('/webhook', (req, res) => {
     return res.status(401).send('Signature verification failed.');
   }
 
-  // 4. Safely process the verified payload
+  //Safely process the verified payload
   console.log('Webhook verified successfully!');
   const event = req.body;
   
