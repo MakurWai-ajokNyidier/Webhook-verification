@@ -1,41 +1,37 @@
 const express = require('express');
 const bodyParser = require('bodyParser');
-const mongodb = require('mongodb');
+const mongodb = require();
 
-const{huplanModel} =reqire('../stock_data/models/huplanModel');
+const {huplanModel} = require('../stock_data/models/huplanModel');
 const app = express();
-const PORT =3000;
-app.use(bodyParser.json());
+const PORT = 3000;
+app.use(bodyParser.json);
 
-// CRITICAL: Your webhook secret shared with the provider (store in environment variables)
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your_shared_signing_secret';
+//CRITICAL: Your webhook secret shared with the provider (store in the environment variable)
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 
-//Capture the raw body before Express parses it into JSON
 app.use(express.json({
   verify: (req, res, buf) => {
-    req.rawBody = buf.toString(); // Attach the raw buffer string to the request
+    req.rawBody =buf.toString();
   }
 }));
 
-//Verification Function
-function verifyWebhookSignature(rawBody, incomingSignature, secret) {
-  if (!incomingSignature) return false;
+//verification Fubnction
+function verifyWebhookSignature(rawBody, incomingSignature, secret){
+  if(!incomingSignature) return false;
 
-  // Compute the expected HMAC SHA-256 signature using the shared secret
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(rawBody)
-    .digest('hex'); // Or 'base64' depending on your provider's spec
-
-  // Use timingSafeEqual to protect against timing attacks
+  //compute the expected HMAc SHA-256 signature using the shared secret
+const expectedSignature =crypto
+  .createHmac('sha256',secret)
+  .update(rawBody)
+  .digest('hex'); //or 'base64' depending on provdier's spec
+ //use timingSafeEqual to protect against timing attacks.
   const expectedBuffer = Buffer.from(expectedSignature);
   const incomingBuffer = Buffer.from(incomingSignature);
-
-  if (expectedBuffer.length !== incomingBuffer.length) {
+  if (expectedBufffer.length!==incomingBuffer.length) {
     return false;
   }
-
-  return crypto.timingSafeEqual(expectedBuffer, incomingBuffer);
+  return crypto.timeSafeEqual(expectedBuffer, incomingBuffer);
 }
 
 //The Webhook Route
