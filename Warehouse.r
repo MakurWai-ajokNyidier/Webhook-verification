@@ -1,4 +1,3 @@
-[package]
 name = "warehouse_polling_service"
 version = "0.1.0"
 edition = "2021"
