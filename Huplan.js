@@ -1,67 +1,77 @@
-const express = require('express');
+const express =require('express');
 const crypto = require('crypto');
+const mongoose =require('mongoose');
+const item = require('./modelds/Item');
+
+const itemSchema = new mongoose.Schema({
+  sku: {type: String, required: true, unique: true},
+  name: String,
+  stockQuantity: {type; Number, required: true, default: 0}};
+module.exports = mongoose.model('Item', itemSchema);
+
+function verifySignature(req, res, next) {
+  const secret = process.env.WEBHOOK_SECRET || 'your_shared_secret';
+  const signature = req.headers['x-webhook-signature'];
+
+  if(!signature) {
+    return res.status(401).json({error: 'Missing sugnature header'});
+  }
+
+  //Expecting req.rawBody to be preserved for HMAC calculation
+  const hmac = crypto.createHmac('sha256', secret);
+  const digest = 'sha256' + hmac.update(req.rawBody).digest('hex');
+  if (crypto.timeSafeEqual(Buffer.from(signature), Buffer.from(digest))){
+    return next();
+  }
+
+  return res.status(403).json({error: 'Invalid signature'});
+}
+
+module.exports = verifySignature;
+
+const verifySignature = require('./middleware/verifySignature');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// CRITICAL: Your webhook secret shared with the provider (store in environment variables)
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'your_shared_signing_secret';
-
-//Capture the raw body before Express parses it into JSON
+//Parse JSON and preserve raw body for HMAC verification
 app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString(); // Attach the raw buffer string to the request
+  verify:(req, res, buf) => {
+    req.rawBody = buf;
   }
 }));
 
-//Verification Function
-function verifyWebhookSignature(rawBody, incomingSignature, secret) {
-  if (!incomingSignature) return false;
+//MongoDB connection
+mongoose.connect('mongodb://127.0.0.1:27017/inventory_db')
+.then(() => console.log('Connceted to MongoDB'))
+.catch(err => console.errpr('MongoDB connect error:', err));
 
-  // Compute the expected HMAC SHA-256 signature using the shared secret
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(rawBody)
-    .digest('hex'); // Or 'base64' depending on your provider's spec
+//webhook Route: verify signature and stock validity.
+app.post('/webhook/check-stock', verifySignature, async (req, res) =>{
+  try{
+    const { sku, requestedQuantity} = req.body;
 
-  // Use timingSafeEqual to protect against timing attacks
-  const expectedBuffer = Buffer.from(expectedSignature);
-  const incomingBuffer = Buffer.from(incomingSignature);
+    if (!sku || !requestQuantity){
+      return res.status(404).json({ status: 'not_found', valid: false, message: 'Item does not exist in the stock.'});
+    }
 
-  if (expectedBuffer.length !== incomingBuffer.length) {
-    return false;
+    if (item.stockQunatity >= requestedQuantity){
+      return res.status(200).json({
+        status: 'success',
+        valid: 'true',
+        message: 'Item is valid in the stock',
+        availableStock: item.stockQuantity
+      });
+    }
+
+    return res.status(200).json({
+      status: 'insufficient_stock',
+      valid: false,
+      message: 'Item exists but requested quantity exceeds stock.',
+      availableStock: item.stockQuantity
+    });
+  } catch(error){
+    return res.status(500).json({error: 'Internal server error', details: error.message});
   }
-
-  return crypto.timingSafeEqual(expectedBuffer, incomingBuffer);
-}
-
-//The Webhook Route
-app.post('/webhook', (req, res) => {
-  // Most providers pass the signature in a custom header (e.g., Stripe-Signature, X-Hub-Signature-256)
-  const incomingSignature = req.headers['x-webhook-signature'];
-
-  // Verify the payload
-  const isValid = verifyWebhookSignature(req.rawBody, incomingSignature, WEBHOOK_SECRET);
-
-  if (!isValid) {
-    console.error('Invalid signature. Webhook rejected.');
-    return res.status(401).send('Signature verification failed.');
-  }
-
-  //Safely process the verified payload
-  console.log('Webhook verified successfully!');
-  const event = req.body;
-  
-  switch(event.type) {
-    case 'payment.succeeded':
-      // Handle business logic
-      break;
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
-  }
-
-  // Always return a 200 OK quickly to acknowledge receipt and prevent retries
-  res.status(200).json({ received: true });
 });
+app.listen(3000, () => console.log('webhook server listening on port 3000'));
 
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
