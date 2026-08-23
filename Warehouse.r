@@ -6,7 +6,7 @@ edition = "2021"
 axum = "0.7"
 tokio = { version = "1.0", features = ["full"] }
 mongodb = "2.8"
-reqwest = { version = "0.11", features = ["json"] }
+request = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 use axum::{
@@ -29,7 +29,6 @@ struct AppState {
     db: Database,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 struct InventoryItem {
     pub sku: String,
     pub name: String,
@@ -37,7 +36,6 @@ struct InventoryItem {
     pub last_synced_at: DateTime,
 }
 
-#[tokio::main]
 async fn main() {
     let client = Client::with_uri_str("mongodb://localhost:27017")
         .await
@@ -45,7 +43,6 @@ async fn main() {
     let db = client.database("warehouse_db");
     let state = AppState { db: db.clone() };
 
-    // Spawn background worker to poll warehouse API every 5 minutes (300 seconds)
     tokio::spawn(async move {
         poll_warehouse_cron(db).await;
     });
@@ -104,7 +101,6 @@ async fn poll_warehouse_cron(db: Database) {
     }
 }
 
-// Query Endpoint: Exposes cached stock data from MongoDB
 async fn get_cached_stock(
     State(state): State<AppState>,
     Path(sku): Path<String>,
