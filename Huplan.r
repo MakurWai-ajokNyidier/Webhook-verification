@@ -4,13 +4,11 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::post,
-    Json, Router,
 };
 use mongodb::{bson::{doc, DateTime}, Client, Collection, Database};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
-use uuid::Uuid;
+
 
 mod middleware;
 
@@ -33,12 +31,6 @@ struct WebhookPayload {
     pub print_job_id: String,
     pub status: String,
 }
-
-#[tokio::main]
-async fn main() {
-    let client = Client::with_uri_str("mongodb://localhost:27017")
-        .await
-        .expect("MongoDB connection failed");
     
     let state = AppState {
         db: client.database("solstice_events"),
