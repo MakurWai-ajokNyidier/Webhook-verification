@@ -1,4 +1,3 @@
-[package]
 name = "webhook_verification"
 version = "0.1.0"
 edition = "2021"
@@ -62,27 +61,22 @@ use uuid::Uuid;
 
 mod middleware;
 
-#[derive(Clone)]
 struct AppState {
     db: Database,
     webhook_secret: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 struct Attendee {
     pub qr_code: String,
     pub status: String,
     pub print_job_id: Option<String>,
 }
-
-#[derive(Debug, Deserialize)]
 struct WebhookPayload {
     pub qr_code: String,
     pub print_job_id: String,
     pub status: String,
 }
 
-#[tokio::main]
 async fn main() {
     let client = Client::with_uri_str("mongodb://localhost:27017")
         .await
@@ -138,13 +132,13 @@ async fn handle_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
-    // 1. Authenticate signature using raw body bytes
+    // Authenticate signature using raw body bytes
     let sig_header = headers.get("x-webhook-signature").and_then(|h| h.to_str().ok());
     if let Err(status) = middleware::auth::verify_webhook_signature(&state.webhook_secret, sig_header, &body) {
         return (status, Json(json!({ "error": "Invalid signature" })));
     }
 
-    // 2. Parse payload after authentication
+    // Parse payload after authentication
     let payload: WebhookPayload = match serde_json::from_slice(&body) {
         Ok(p) => p,
         Err(_) => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Malformed JSON" }))),
