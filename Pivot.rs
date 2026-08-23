@@ -9,7 +9,6 @@ pub enum CheckInStatus {
     CheckedIn,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 pub struct Attendee {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
@@ -19,13 +18,10 @@ pub struct Attendee {
     pub print_job_id: Option<String>,
     pub updated_at: DateTime,
 }
-
-#[derive(Debug, Deserialize)]
 pub struct ScanPayload {
     pub qr_code: String,
 }
 
-#[derive(Debug, Deserialize)]
 pub struct WebhookPayload {
     pub print_job_id: String,
     pub status: String, // "SUCCESS" or "FAILED"
@@ -46,12 +42,10 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[derive(Clone)]
 struct AppState {
     db: Database,
 }
 
-#[tokio::main]
 async fn main() {
     let client = Client::with_uri_str("mongodb://localhost:27017")
         .await
@@ -69,7 +63,7 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-// 1. Initial QR Code Scan Endpoint
+#Initial Scan
 async fn handle_scan(
     State(state): State<AppState>,
     Json(payload): Json<ScanPayload>,
@@ -77,7 +71,7 @@ async fn handle_scan(
     let collection: Collection<Attendee> = state.db.collection("attendees");
     let job_id = Uuid::new_v4().to_string();
     
-    // Atomic update: only transition to PendingPrint if current status is NotCheckedIn
+    // update
     let filter = doc! {
         "qr_code": &payload.qr_code,
         "status": "not_checked_in"
@@ -94,7 +88,7 @@ async fn handle_scan(
 
     match result {
         Ok(Some(_)) => {
-            // Mock publishing message to vendor queue
+            // Mock publishing to vendor queue.
             tokio::spawn(mock_vendor_queue_publish(payload.qr_code.clone(), job_id));
 
             (
@@ -119,7 +113,7 @@ async fn handle_scan(
         ),
     }
 }
-// 2. Vendor Async Webhook Callback
+// Async Webhook Callback
 async fn handle_webhook(
     State(state): State<AppState>,
     Json(payload): Json<WebhookPayload>,
@@ -181,26 +175,26 @@ async fn test_async_check_in_flow() {
     ];
     attendees.insert_many(test_data, None).await.unwrap();
 
-    // Test 1: First Scan for Alice -> Returns PENDING_PRINT
+    // First Scan for Alice -> Returns PENDING_PRINT
     let res1 = simulate_scan_request(&db, "QR_001").await;
     assert_eq!(res1["status"], "PENDING_PRINT");
 
-    // Test 2: Duplicate Scan for Alice while pending -> Blocked (DUPLICATE_SCAN)
+    // Second Duplicate Scan for Alice while pending -> Blocked (DUPLICATE_SCAN)
     let res2 = simulate_scan_request(&db, "QR_001").await;
     assert_eq!(res2["status"], "DUPLICATE_SCAN");
 
-    // Test 3: Webhook fires for Alice -> Status updates to CHECKED_IN
+    // Third Webhook fires for Alice -> Status updates to CHECKED_IN
     let job_id = res1["print_job_id"].as_str().unwrap();
     simulate_webhook_callback(&db, "QR_001", job_id, "SUCCESS").await;
 
     let alice = attendees.find_one(doc! { "qr_code": "QR_001" }, None).await.unwrap().unwrap();
     assert_eq!(alice.status, models::CheckInStatus::CheckedIn);
 
-    // Test 4: Duplicate Scan for Alice after success -> Blocked (DUPLICATE_SCAN)
+    // Forth Duplicate Scan for Alice after success -> Blocked (DUPLICATE_SCAN)
     let res3 = simulate_scan_request(&db, "QR_001").await;
     assert_eq!(res3["status"], "DUPLICATE_SCAN");
 
-    // Test 5: Scan Bob & Charlie
+    // Fifth Scan Bob & Charlie
     let res_bob = simulate_scan_request(&db, "QR_002").await;
     assert_eq!(res_bob["status"], "PENDING_PRINT");
 }
